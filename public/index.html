@@ -74,6 +74,7 @@ ol.list li.on{background:rgba(255,122,168,.16);color:var(--txt)}
     <div class="row" id="renameRow" hidden>
       <input id="renameInput" maxlength="80" placeholder="Nuovo titolo" style="max-width:320px">
       <button id="renameBtn" class="ghost">Rinomina</button>
+      <button id="deleteBtn" class="ghost">Elimina</button>
     </div>
     <div class="status" id="renameStatus"></div>
     <div class="row">
@@ -214,6 +215,41 @@ function play(id) {
   $("renameStatus").textContent = "";
   renderPlaylist();
 }
+
+let deleteArmed = false;
+
+$("deleteBtn").onclick = async () => {
+  if (!playingId) return;
+  const btn = $("deleteBtn");
+  if (!deleteArmed) {
+    deleteArmed = true;
+    btn.textContent = "Conferma eliminazione";
+    $("renameStatus").textContent = "Premi di nuovo per eliminare il video definitivamente.";
+    setTimeout(() => {
+      deleteArmed = false;
+      btn.textContent = "Elimina";
+    }, 5000);
+    return;
+  }
+  deleteArmed = false;
+  btn.disabled = true;
+  try {
+    const res = await fetch("/api/videos/" + playingId, { method: "DELETE" });
+    if (!res.ok) throw new Error();
+    playingId = null;
+    const p = $("player");
+    p.pause();
+    p.removeAttribute("src");
+    p.load();
+    $("renameRow").hidden = true;
+    $("renameStatus").textContent = "Video eliminato.";
+    btn.textContent = "Elimina";
+    await loadVideos();
+  } catch (e) {
+    $("renameStatus").textContent = "Non sono riuscito a eliminarlo, riprova.";
+  }
+  btn.disabled = false;
+};
 
 $("renameBtn").onclick = async () => {
   const title = $("renameInput").value.trim();

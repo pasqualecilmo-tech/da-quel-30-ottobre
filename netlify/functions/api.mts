@@ -76,6 +76,14 @@ export default async (req: Request, _context: Context) => {
       });
     }
 
+    if (resource === "videos" && id && UUID.test(id) && req.method === "DELETE") {
+      const meta = await videos.get(`meta/${id}`, { type: "json" });
+      if (!meta) return json({ error: "Video non trovato" }, 404);
+      await videos.delete(`file/${id}`);
+      await videos.delete(`meta/${id}`);
+      return json({ deleted: id });
+    }
+
     if (resource === "videos" && id && UUID.test(id) && req.method === "PUT") {
       const body = await req.json().catch(() => null);
       const title = typeof body?.title === "string" ? body.title.trim().slice(0, 80) : "";
