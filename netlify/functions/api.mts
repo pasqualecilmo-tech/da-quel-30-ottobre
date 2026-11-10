@@ -76,6 +76,17 @@ export default async (req: Request, _context: Context) => {
       });
     }
 
+    if (resource === "video" && id && UUID.test(id) && req.method === "PUT") {
+      const body = await req.json().catch(() => null);
+      const title = typeof body?.title === "string" ? body.title.trim().slice(0, 80) : "";
+      if (!title) return json({ error: "Titolo vuoto" }, 400);
+      const meta = (await videos.get(`meta/${id}`, { type: "json" })) as VideoRecord | null;
+      if (!meta) return json({ error: "Video non trovato" }, 404);
+      const updated: VideoRecord = { ...meta, title };
+      await videos.setJSON(`meta/${id}`, updated);
+      return json(updated);
+    }
+
     return json({ error: "Non trovato" }, 404);
   } catch (err) {
     console.error(err);

@@ -71,6 +71,11 @@ ol.list li.on{background:rgba(255,122,168,.16);color:var(--txt)}
     <video id="player" controls playsinline></video>
     <div class="meta" id="nowPlaying"></div>
     <ol class="list" id="playlist"></ol>
+    <div class="row" id="renameRow" hidden>
+      <input id="renameInput" maxlength="80" placeholder="Nuovo titolo" style="max-width:320px">
+      <button id="renameBtn" class="ghost">Rinomina</button>
+    </div>
+    <div class="status" id="renameStatus"></div>
     <div class="row">
       <button id="pickBtn" class="ghost">Carica un video</button>
     </div>
@@ -204,8 +209,32 @@ function play(id) {
   p.src = "/api/video/" + v.id;
   p.play().catch(() => {});
   $("nowPlaying").textContent = "In riproduzione: " + (v.title || "Video");
+  $("renameRow").hidden = false;
+  $("renameInput").value = v.title || "";
+  $("renameStatus").textContent = "";
   renderPlaylist();
 }
+
+$("renameBtn").onclick = async () => {
+  const title = $("renameInput").value.trim();
+  if (!title || !playingId) return;
+  const btn = $("renameBtn");
+  btn.disabled = true;
+  try {
+    const res = await fetch("/api/videos/" + playingId, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ title })
+    });
+    if (!res.ok) throw new Error();
+    $("renameStatus").textContent = "Titolo aggiornato.";
+    await loadVideos();
+    $("nowPlaying").textContent = "In riproduzione: " + title;
+  } catch (e) {
+    $("renameStatus").textContent = "Non sono riuscito a rinominarlo, riprova.";
+  }
+  btn.disabled = false;
+};
 
 $("player").onended = () => {
   const i = videos.findIndex(x => x.id === playingId);
