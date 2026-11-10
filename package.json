@@ -1,0 +1,9 @@
+{
+  "name": "love-counter",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@netlify/blobs": "^7.0.0",
+    "@netlify/functions": "^4.0.0"
+  }
+}

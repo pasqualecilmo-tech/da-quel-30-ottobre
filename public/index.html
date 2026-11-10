@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Da quel 30 ottobre</title>
+<style>
+:root{--bg1:#2a0f1f;--bg2:#12070d;--pink:#ff7aa8;--txt:#fff1f5;--muted:#c9a3b4;--card:rgba(255,255,255,.06)}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;min-height:100vh;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--txt);background:radial-gradient(circle at 20% 0%,var(--bg1),var(--bg2));padding:env(safe-area-inset-top) 16px 48px}
+main{max-width:720px;margin:0 auto}
+h1{font-weight:300;text-align:center;font-size:1rem;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin:28px 0 8px}
+h2{font-weight:400;font-size:1rem;text-align:center;color:var(--muted);letter-spacing:.12em;text-transform:uppercase;margin:0 0 14px}
+.card{background:var(--card);border:1px solid rgba(255,255,255,.08);border-radius:20px;padding:22px;margin:16px 0}
+.counter{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center}
+.n{font-size:clamp(2rem,8vw,3.4rem);font-weight:600;font-variant-numeric:tabular-nums;color:var(--pink)}
+.l{font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.1em}
+.totals{margin-top:16px;text-align:center;color:var(--muted);font-size:.95rem;font-variant-numeric:tabular-nums}
+.meta{text-align:center;color:var(--muted);font-size:.88rem;margin-top:8px;min-height:1.3em}
+.phrase{font-size:clamp(1.25rem,4vw,1.75rem);line-height:1.45;min-height:5.5em;display:flex;align-items:center;justify-content:center;text-align:center;transition:opacity .3s;cursor:pointer}
+.phrase.fade{opacity:0}
+.row{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:14px}
+button{font:inherit;background:var(--pink);color:#2a0f1f;border:0;border-radius:999px;padding:10px 18px;cursor:pointer;font-weight:600}
+button.ghost{background:transparent;color:var(--pink);border:1px solid var(--pink)}
+button:disabled{opacity:.5;cursor:default}
+textarea,input{width:100%;font:inherit;background:rgba(0,0,0,.25);color:var(--txt);border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:10px}
+details summary{cursor:pointer;color:var(--muted);text-align:center;margin-top:14px}
+video{width:100%;border-radius:14px;background:#000;margin-top:4px}
+ol.list{list-style:none;padding:0;margin:14px 0 0}
+ol.list li{padding:10px 12px;border-radius:12px;cursor:pointer;color:var(--muted)}
+ol.list li.on{background:rgba(255,122,168,.16);color:var(--txt)}
+.heart{display:inline-block;color:var(--pink);animation:beat 1.2s infinite}
+@keyframes beat{0%,100%{transform:scale(1)}50%{transform:scale(1.18)}}
+.status{text-align:center;color:var(--muted);font-size:.9rem;min-height:1.3em;margin-top:10px}
+</style>
+</head>
+<body>
+<main>
+  <h1><span class="heart">&#9829;</span> Da quel 30 ottobre, ore 17:32</h1>
+
+  <section class="card">
+    <div class="counter">
+      <div><div class="n" id="d">0</div><div class="l">giorni</div></div>
+      <div><div class="n" id="h">0</div><div class="l">ore</div></div>
+      <div><div class="n" id="m">0</div><div class="l">minuti</div></div>
+      <div><div class="n" id="s">0</div><div class="l">secondi</div></div>
+    </div>
+    <div class="totals" id="totals"></div>
+    <div class="meta" id="milestone"></div>
+  </section>
+
+  <section class="card">
+    <div class="phrase" id="phrase" aria-live="polite"></div>
+    <div class="meta" id="phraseBy"></div>
+    <div class="row"><button id="nextBtn">Un'altra frase</button></div>
+
+    <details>
+      <summary>Aggiungi una frase che ci è piaciuta</summary>
+      <div style="margin-top:12px">
+        <textarea id="newPhrase" rows="3" maxlength="400" placeholder="Scrivi la frase..."></textarea>
+        <input id="newBy" maxlength="40" placeholder="Chi l'ha detta (facoltativo)" style="margin-top:8px">
+        <div class="row"><button id="addBtn" class="ghost">Salva frase</button></div>
+        <div class="status" id="phraseStatus"></div>
+      </div>
+    </details>
+  </section>
+
+  <section class="card">
+    <h2>I nostri video</h2>
+    <video id="player" controls playsinline></video>
+    <div class="meta" id="nowPlaying"></div>
+    <ol class="list" id="playlist"></ol>
+    <div class="row">
+      <button id="pickBtn" class="ghost">Carica un video</button>
+    </div>
+    <input type="file" id="fileIn" accept="video/*" hidden>
+    <div class="status" id="videoStatus">Massimo 4 MB per video.</div>
+  </section>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const nf = new Intl.NumberFormat("it-IT");
+
+/* ---------- Contatore ---------- */
+const START = Date.parse("2026-10-30T17:32:00+01:00");
+const MILESTONES = [
+  { at: Date.parse("2027-02-07T17:32:00+01:00"), label: "100 giorni" },
+  { at: Date.parse("2027-04-30T17:32:00+02:00"), label: "6 mesi" },
+  { at: Date.parse("2027-10-30T17:32:00+02:00"), label: "un anno" }
+];
+
+function tick() {
+  const now = Date.now();
+  const s = Math.floor(Math.max(0, now - START) / 1000);
+  $("d").textContent = Math.floor(s / 86400);
+  $("h").textContent = Math.floor((s % 86400) / 3600);
+  $("m").textContent = Math.floor((s % 3600) / 60);
+  $("s").textContent = s % 60;
+  $("totals").textContent =
+    `In totale: ${nf.format(Math.floor(s / 3600))} ore · ${nf.format(Math.floor(s / 60))} minuti · ${nf.format(s)} secondi`;
+  const next = MILESTONES.find(x => x.at > now);
+  $("milestone").textContent = next
+    ? `Prossimo traguardo: ${next.label}, tra ${nf.format(Math.floor((next.at - now) / 86400000))} giorni`
+    : "";
+}
+tick();
+setInterval(tick, 1000);
+
+/* ---------- Frasi ---------- */
+const FALLBACK = [
+  "Da quel pomeriggio del 30 ottobre, il mio tempo ha un inizio preciso.",
+  "Non ricordo com'era il mondo prima di te, e non mi manca nemmeno un po'.",
+  "Il mio momento preferito è sempre quello in cui stai per ridere.",
+  "Se il tempo fosse una canzone, tu saresti il ritornello.",
+  "Non so cosa ci riserva il futuro, mi basta averti accanto adesso."
+].map(text => ({ id: null, text, by: "" }));
+
+let shared = [];
+let current = null;
+
+function showPhrase(p) {
+  const el = $("phrase");
+  el.classList.add("fade");
+  setTimeout(() => {
+    el.textContent = p.text;
+    $("phraseBy").textContent = p.by ? "— " + p.by : "";
+    el.classList.remove("fade");
+  }, 300);
+  current = p;
+}
+
+function nextPhrase() {
+  const pool = [...FALLBACK, ...shared];
+  if (!pool.length) return;
+  let p;
+  do {
+    p = pool[Math.floor(Math.random() * pool.length)];
+  } while (pool.length > 1 && p === current);
+  showPhrase(p);
+}
+
+$("nextBtn").onclick = nextPhrase;
+$("phrase").onclick = nextPhrase;
+
+async function loadPhrases() {
+  try {
+    const res = await fetch("/api/phrases");
+    if (!res.ok) return;
+    shared = (await res.json()).filter(p => p && p.text);
+  } catch (e) { /* riprova al prossimo giro */ }
+}
+
+$("addBtn").onclick = async () => {
+  const text = $("newPhrase").value.trim();
+  if (!text) return;
+  const btn = $("addBtn");
+  btn.disabled = true;
+  try {
+    const res = await fetch("/api/phrases", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ text, by: $("newBy").value.trim() })
+    });
+    if (!res.ok) throw new Error();
+    const saved = await res.json();
+    shared.push(saved);
+    $("newPhrase").value = "";
+    $("newBy").value = "";
+    $("phraseStatus").textContent = "Salvata: ora può comparire tra le frasi.";
+  } catch (e) {
+    $("phraseStatus").textContent = "Non sono riuscito a salvarla, riprova.";
+  }
+  btn.disabled = false;
+};
+
+/* ---------- Video ---------- */
+let videos = [];
+let playingId = null;
+
+function renderPlaylist() {
+  const ol = $("playlist");
+  ol.textContent = "";
+  if (!videos.length) {
+    $("nowPlaying").textContent = "Nessun video ancora.";
+    return;
+  }
+  if (!playingId) $("nowPlaying").textContent = "Scegli un video dalla lista.";
+  videos.forEach((v, i) => {
+    const li = document.createElement("li");
+    li.textContent = (i + 1) + ". " + (v.title || "Video");
+    if (v.id === playingId) li.classList.add("on");
+    li.onclick = () => play(v.id);
+    ol.appendChild(li);
+  });
+}
+
+function play(id) {
+  const v = videos.find(x => x.id === id);
+  if (!v) return;
+  playingId = id;
+  const p = $("player");
+  p.src = "/api/video/" + v.id;
+  p.play().catch(() => {});
+  $("nowPlaying").textContent = "In riproduzione: " + (v.title || "Video");
+  renderPlaylist();
+}
+
+$("player").onended = () => {
+  const i = videos.findIndex(x => x.id === playingId);
+  if (i >= 0 && i + 1 < videos.length) play(videos[i + 1].id);
+};
+
+async function loadVideos() {
+  try {
+    const res = await fetch("/api/videos");
+    if (!res.ok) return;
+    videos = await res.json();
+    renderPlaylist();
+  } catch (e) { /* riprova al prossimo giro */ }
+}
+
+$("pickBtn").onclick = () => $("fileIn").click();
+
+$("fileIn").onchange = async e => {
+  const file = e.target.files[0];
+  e.target.value = "";
+  if (!file) return;
+  if (file.size > 4 * 1024 * 1024) {
+    $("videoStatus").textContent = "Il video supera 4 MB: comprimilo e riprova.";
+    return;
+  }
+  $("videoStatus").textContent = "Carico " + file.name + "…";
+  $("pickBtn").disabled = true;
+  try {
+    const form = new FormData();
+    form.append("file", file);
+    form.append("title", file.name);
+    const res = await fetch("/api/videos", { method: "POST", body: form });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || "errore");
+    $("videoStatus").textContent = "Video aggiunto alla playlist.";
+    await loadVideos();
+  } catch (err) {
+    $("videoStatus").textContent = "Caricamento non riuscito: " + (err.message || "riprova") + ".";
+  }
+  $("pickBtn").disabled = false;
+};
+
+/* ---------- Avvio ---------- */
+async function refresh() {
+  await Promise.all([loadPhrases(), loadVideos()]);
+}
+
+nextPhrase();
+renderPlaylist();
+refresh();
+setInterval(refresh, 30000);
+</script>
+</body>
+</html>
