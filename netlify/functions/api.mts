@@ -76,7 +76,7 @@ export default async (req: Request, _context: Context) => {
       });
     }
 
-    if (resource === "video" && id && UUID.test(id) && req.method === "PUT") {
+    if (resource === "videos" && id && UUID.test(id) && req.method === "PUT") {
       const body = await req.json().catch(() => null);
       const title = typeof body?.title === "string" ? body.title.trim().slice(0, 80) : "";
       if (!title) return json({ error: "Titolo vuoto" }, 400);
