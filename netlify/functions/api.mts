@@ -76,6 +76,27 @@ export default async (req: Request, _context: Context) => {
       });
     }
 
+    if (resource === "phrases" && id && UUID.test(id) && (req.method === "PUT" || req.method === "DELETE")) {
+      const { blobs } = await phrases.list();
+      const key = blobs.map(b => b.key).find(k => k.endsWith(`_${id}`));
+      if (!key) return json({ error: "Frase non trovata" }, 404);
+
+      if (req.method === "DELETE") {
+        await phrases.delete(key);
+        return json({ deleted: id });
+      }
+
+      const old = (await phrases.get(key, { type: "json" })) as PhraseRecord | null;
+      if (!old) return json({ error: "Frase non trovata" }, 404);
+      const body = await req.json().catch(() => null);
+      const text = typeof body?.text === "string" ? body.text.trim().slice(0, 400) : "";
+      if (!text) return json({ error: "Frase vuota" }, 400);
+      const by = typeof body?.by === "string" ? body.by.trim().slice(0, 40) : "";
+      const updated: PhraseRecord = { ...old, text, by };
+      await phrases.setJSON(key, updated);
+      return json(updated);
+    }
+
     if (resource === "videos" && id && UUID.test(id) && req.method === "DELETE") {
       const meta = await videos.get(`meta/${id}`, { type: "json" });
       if (!meta) return json({ error: "Video non trovato" }, 404);

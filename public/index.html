@@ -54,6 +54,20 @@ ol.list li.on{background:rgba(255,122,168,.16);color:var(--txt)}
     <div class="phrase" id="phrase" aria-live="polite"></div>
     <div class="meta" id="phraseBy"></div>
     <div class="row"><button id="nextBtn">Un'altra frase</button></div>
+    <div class="row" id="phraseActions" hidden>
+      <button id="editPhraseBtn" class="ghost">Modifica</button>
+      <button id="delPhraseBtn" class="ghost">Elimina</button>
+    </div>
+    <div class="status" id="phraseActionStatus"></div>
+    <div id="editWrap" hidden style="margin-top:12px">
+      <textarea id="editText" rows="3" maxlength="400"></textarea>
+      <input id="editBy" maxlength="40" placeholder="Chi l'ha detta (facoltativo)" style="margin-top:8px">
+      <div class="row">
+        <button id="saveEditBtn">Salva modifica</button>
+        <button id="cancelEditBtn" class="ghost">Annulla</button>
+      </div>
+      <div class="status" id="editStatus"></div>
+    </div>
 
     <details>
       <summary>Aggiungi una frase che ci è piaciuta</summary>
@@ -135,7 +149,76 @@ function showPhrase(p) {
     el.classList.remove("fade");
   }, 300);
   current = p;
+  $("phraseActions").hidden = !(p && p.id);
+  $("editWrap").hidden = true;
+  $("phraseActionStatus").textContent = "";
 }
+
+let phraseDeleteArmed = false;
+
+$("editPhraseBtn").onclick = () => {
+  if (!current || !current.id) return;
+  $("editText").value = current.text;
+  $("editBy").value = current.by || "";
+  $("editStatus").textContent = "";
+  $("editWrap").hidden = false;
+};
+
+$("cancelEditBtn").onclick = () => {
+  $("editWrap").hidden = true;
+};
+
+$("saveEditBtn").onclick = async () => {
+  const text = $("editText").value.trim();
+  if (!text || !current || !current.id) return;
+  const id = current.id;
+  const btn = $("saveEditBtn");
+  btn.disabled = true;
+  try {
+    const res = await fetch("/api/phrases/" + id, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ text, by: $("editBy").value.trim() })
+    });
+    if (!res.ok) throw new Error();
+    const updated = await res.json();
+    shared = shared.map(p => (p.id === id ? updated : p));
+    current = updated;
+    $("phrase").textContent = updated.text;
+    $("phraseBy").textContent = updated.by ? "— " + updated.by : "";
+    $("editWrap").hidden = true;
+  } catch (e) {
+    $("editStatus").textContent = "Non sono riuscito a salvarla, riprova.";
+  }
+  btn.disabled = false;
+};
+
+$("delPhraseBtn").onclick = async () => {
+  if (!current || !current.id) return;
+  const btn = $("delPhraseBtn");
+  if (!phraseDeleteArmed) {
+    phraseDeleteArmed = true;
+    btn.textContent = "Conferma eliminazione";
+    setTimeout(() => {
+      phraseDeleteArmed = false;
+      btn.textContent = "Elimina";
+    }, 5000);
+    return;
+  }
+  phraseDeleteArmed = false;
+  const id = current.id;
+  btn.disabled = true;
+  try {
+    const res = await fetch("/api/phrases/" + id, { method: "DELETE" });
+    if (!res.ok) throw new Error();
+    shared = shared.filter(p => p.id !== id);
+    btn.textContent = "Elimina";
+    nextPhrase();
+  } catch (e) {
+    $("phraseActionStatus").textContent = "Non sono riuscito a eliminarla, riprova.";
+  }
+  btn.disabled = false;
+};
 
 function nextPhrase() {
   const pool = [...FALLBACK, ...shared];
