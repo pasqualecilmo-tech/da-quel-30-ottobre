@@ -65,15 +65,41 @@ export default async (req: Request, _context: Context) => {
       return json(meta, 201);
     }
 
-    if (resource === "video" && id && UUID.test(id) && req.method === "GET") {
-      const entry = await videos.getWithMetadata(`file/${id}`, { type: "stream" });
+    if (resource === "video" && id && UUID.test(id) && (req.method === "GET" || req.method === "HEAD")) {
+      // Safari (iPhone) chiede il video a pezzi con l'intestazione Range: va gestita.
+      const entry = await videos.getWithMetadata(`file/${id}`, { type: "arrayBuffer" });
       if (entry === null) return new Response("Non trovato", { status: 404 });
-      return new Response(entry.data, {
-        headers: {
-          "content-type": String(entry.metadata?.contentType || "video/mp4"),
-          "cache-control": "public, max-age=86400",
-        },
-      });
+      const bytes = new Uint8Array(entry.data as ArrayBuffer);
+      const total = bytes.byteLength;
+      const headers: Record<string, string> = {
+        "content-type": String(entry.metadata?.contentType || "video/mp4"),
+        "accept-ranges": "bytes",
+        "cache-control": "public, max-age=86400",
+      };
+      const isHead = req.method === "HEAD";
+
+      const range = req.headers.get("range");
+      const m = range ? /^bytes=(\d*)-(\d*)$/.exec(range.trim()) : null;
+      if (m && (m[1] || m[2])) {
+        let start: number;
+        let end: number;
+        if (!m[1]) {
+          // suffisso: "bytes=-500" = ultimi 500 byte
+          start = Math.max(0, total - parseInt(m[2], 10));
+          end = total - 1;
+        } else {
+          start = parseInt(m[1], 10);
+          end = m[2] ? parseInt(m[2], 10) : total - 1;
+        }
+        end = Math.min(end, total - 1);
+        if (start > end || start >= total) {
+          return new Response(null, { status: 416, headers: { "content-range": `bytes */${total}` } });
+        }
+        headers["content-range"] = `bytes ${start}-${end}/${total}`;
+        return new Response(isHead ? null : bytes.slice(start, end + 1), { status: 206, headers });
+      }
+
+      return new Response(isHead ? null : bytes, { status: 200, headers });
     }
 
     if (resource === "phrases" && id && UUID.test(id) && (req.method === "PUT" || req.method === "DELETE")) {
